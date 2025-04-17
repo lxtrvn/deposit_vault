@@ -1,0 +1,4 @@
+// The program input for piggybanker/src/main.leo
+[main]
+a: address = aleo18vr2hlkgf4wqxar8sweufafp6477496mtfuxq7jjrh6lthrpyvrspzr4pf;
+b: u32 = 2u32;

@@ -1,0 +1,14 @@
+{
+  "program": "piggybanker.aleo",
+  "version": "0.0.0",
+  "description": "",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "credits.aleo",
+      "location": "network",
+      "network": "mainnet",
+      "path": null
+    }
+  ]
+}
