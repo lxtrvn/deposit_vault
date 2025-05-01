@@ -6,9 +6,7 @@ program piggybanker.aleo {
     record Token {
         owner: address,
         amount: u128,
-        token_id: field,
-        external_authorization_required: bool,
-        authorized_until: u32
+        token_id: field
     }
     record Vault {
         owner: address,
@@ -18,166 +16,124 @@ program piggybanker.aleo {
         end_time: u32
     }
     mapping balance: address => u128;
-    mapping deposist: address => u128;
-    mapping vaultend: address => u32;
-    mapping registered_tokens: field => TokenMetadata;
-    mapping balances: field => Balance; // hash(token_id, account) => Balance
-    mapping authorized_balances: field => Balance; // hash(token_id, account) => Balance
-    mapping allowances: field => u128; // hash(token_id, account, spender) => Allowance
 
-    const MINTER_ROLE: u8 = 1u8;
-    const BURNER_ROLE: u8 = 2u8;
-    const SUPPLY_MANAGER_ROLE: u8 = 3u8;
-    mapping roles: field => u8; // hash(token_id, account) => role
-    struct TokenMetadata {
-        token_id: field,
-        name: u128, // ASCII text represented in bits, and the u128 value of the bitstring
-        symbol: u128, // ASCII text represented in bits, and the u128 value of the bitstring
-        decimals: u8,
-        supply: u128,
-        max_supply: u128,
-        admin: address,
-        external_authorization_required: bool, // whether or not this token requires authorization from an external program before transferring
-        external_authorization_party: address
-    }
-    struct TokenOwner {
-        account: address,
-        token_id: field
-    }
 
-    struct Balance {
-        token_id: field,
-        account: address,
-        balance: u128,
-        authorized_until: u32
-    }
-
-    struct Allowance {
-        account: address,
-        spender: address,
-        token_id: field
-    }
-    
-
-    async transition createvault() -> (Vault, Future) {
+    async transition createvault(height: u32) -> (Vault, Future) {
         let signer: address = self.signer;
         let create: Vault = Vault {
             owner: signer,
             amount: 0u128,
             token_id: CREDITS_TOKEN_ID,
-            start_time: 0u32,
-            end_time: 0u32
+            start_time: height,
+            end_time: height + 3000u32
         };
-        return (create, finalize_createvault(signer));
+        return (create, finalize_createvault(height));
     }
-    async function finalize_createvault( signer: address) {
-        // Create a new vault for the depositor.
-    
+    async function finalize_createvault( height: u32) {
+        // Check innput against current block height
+        assert_eq(height, block.height);
         return; //return the vault.
       //  Mapping::set(vaultend, signer, block.height + 3456u32);
 
 
     }
-    async transition privitize(
-
+    async transition privatize(
     recipient: address,
-    public amount: u128,
-    public external_authorization_required: bool
+    public amount: u128
   ) -> (Token, Future) {
-    let authorized_until: u32 = external_authorization_required ? 0u32 : 4294967295u32;
     let token: Token = Token {
-      owner: recipient,
+      owner: self.signer,
       amount: amount,
-      token_id: CREDITS_TOKEN_ID,
-      external_authorization_required: external_authorization_required,
-      authorized_until: authorized_until
-    };
-
-    let sender_key: TokenOwner = TokenOwner {
-      account: self.caller,
       token_id: CREDITS_TOKEN_ID
     };
-    let sender_key_hash: field = BHP256::hash_to_field(sender_key);
-    return (token, finalize_privatize(CREDITS_TOKEN_ID, amount, self.signer, external_authorization_required, sender_key_hash));
+
+    return (token, finalize_privatize(CREDITS_TOKEN_ID, amount, self.signer));
   }
 
   async function finalize_privatize(
     token_id: field,
     amount: u128,
-    owner: address,
-    external_authorization_required: bool,
-    sender_key_hash: field
+    owner: address
   ) {
-    // Check that the transfer record's authorization matches the token's external_authorization_required
-    let token: TokenMetadata = registered_tokens.get(token_id);
-    assert_eq(token.external_authorization_required, external_authorization_required);
 
     // Get stored balances for the owner
-    let owner_balance: Balance = authorized_balances.get(sender_key_hash);
-    // Assert that the balance authorization is not expired or that the token does not require authorization
-    let token_metadata: TokenMetadata = registered_tokens.get(token_id);
-    assert(block.height <= owner_balance.authorized_until || !token_metadata.external_authorization_required);
-    // Update the balance
-    let new_balance: Balance = Balance {
-      token_id: token_id,
-      account: owner,
-      balance: owner_balance.balance - amount,
-      authorized_until: owner_balance.authorized_until
-    };
-    authorized_balances.set(sender_key_hash, new_balance);
+    let owner_balance: u128 = Mapping::get_or_use(balance, owner, 0u128);
+    // Check that the owner has enough balance    
+    assert_eq(true, owner_balance >= amount);
+    // Update the owner's balance
+    let new_balance: u128 = owner_balance - amount;
+    balance.set(owner, new_balance);
+    // Check that the token ID is valid     
+    assert_eq(token_id,CREDITS_TOKEN_ID);
+    // Check that the amount is valid
+    assert_eq(true, amount > 0u128);
+  
   }
 
     // Deposits some amount of money into the bank.
     // Returns a new Token with the remaining amount of money.
     // - `token` : A record containing tokens to deposit.
     // - `amount`: The amount of tokens to deposit.
-    async transition deposit(token: Token, create: Vault, amount: u128) -> ( Token, Vault, Future) {
+    async transition deposit_again(create: Vault, token: Token,  amount: u128) -> ( Vault, Token,  Future) {
         
 
         // Get the vault of the sender.
         let owner_tokens: u128 = token.amount;
-        let reciept: Token = Token {
-            owner: token.owner,
-            amount: amount,
-            token_id: CREDITS_TOKEN_ID,
-            external_authorization_required: token.external_authorization_required,
-            authorized_until: token.authorized_until
-        };
-        let ovault: Vault = Vault {
+         let ovault: Vault = Vault {
             owner: create.owner,
-            amount: taxed_amount,
+            amount: create.amount + amount,
             token_id: create.token_id,
             start_time: create.start_time,
             end_time: create.end_time
 
         };
+        let reciept: Token = Token {
+            owner: token.owner,
+            amount: token.amount - amount,
+            token_id: CREDITS_TOKEN_ID
+        };
+       
         let sender: address = self.signer;
-        assert_eq(true, sender == create.owner);
+        assert_eq(sender, create.owner);
         // Compute the hash of the token owner.
-        return (reciept, ovault,  finalize_deposit(sender, amount));
+        return ( ovault, reciept,  finalize_deposit_again(sender, amount));
     }
 
     // Updates on-chain state by the amount of tokens deposited.
     // - `hash`  : The hash of the token owner.
     // - `amount`: The amount of tokens that were deposited.
-    async function finalize_deposit(sender: address, amount: u128)  {
-
-
+    async function finalize_deposit_again(sender: address, amount: u128)  {
         let sender_old_balance: u128 = balance.get_or_use(sender, 0u128);
+        assert_eq(true, amount > 0u128);
+        // Get stored balances for the sender
+        // Check that the sender has enough balance
+        assert_eq(true, amount <= sender_old_balance);
+        
         let sender_new_balance: u128 = sender_old_balance - amount;
         balance.set(sender, sender_new_balance);
     }
-    async transition withdraw(amount: u128) -> ( Future) {
-      
-
-        return  finalize_withdraw(self.signer, amount);
+    async transition withdraw(ovault: Vault,  amount: u128) -> (Vault,   Future) {
+      let vaultbalance: u128 = ovault.amount;
+      assert_eq(true, vaultbalance > 0u128);
+      assert_eq(true, amount <= vaultbalance);
+      let endtime: u32 = ovault.end_time;
+      let ready: Vault = Vault {
+        owner: ovault.owner,
+        amount: ovault.amount - amount,
+        token_id: ovault.token_id,
+        start_time: ovault.start_time,    
+        end_time: ovault.end_time
+      };
+        return  ( ready, finalize_withdraw(self.signer, amount, endtime));
     }
-    async function finalize_withdraw(owner: address, amount: u128) {
-        let vault_amount: u128 = Mapping::get(deposist, owner);
-        assert_eq(true, vault_amount > 0u128);
-        Mapping::set(deposist, owner, vault_amount - amount);
-        let current_amount: u128 = Mapping::get_or_use(balance, owner, 0u128);
-        Mapping::set(balance, owner, current_amount + amount);
+    async function finalize_withdraw(owner: address, amount: u128,  endtime: u32) {
+        assert_eq(true, block.height > endtime);
+        // Get the vault of the sender.
+        let pubbalance: u128 = balance.get_or_use(owner, 0u128);
+        let newbalance: u128 = pubbalance + amount;
+        balance.set(owner, newbalance); 
+        
+    
     }
 
 
