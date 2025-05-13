@@ -19,4 +19,7 @@ export default defineConfig({
         'core-js': 'core-js'
     }
 },
+build: {
+            target: 'esnext', // or 'es2022'
+          },
 });

@@ -19,15 +19,19 @@ mapping balance:
 
 function createvault:
     input r0 as u32.private;
-    add r0 3000u32 into r1;
-    cast self.signer 0u128 3443843282313283355522573239085696902919850365217539366784739393210722344986field r0 r1 into r2 as Vault.record;
-    async createvault r0 into r3;
-    output r2 as Vault.record;
-    output r3 as piggybanker.aleo/createvault.future;
+    input r1 as u32.private;
+    mul r1 12u32 into r2;
+    add r0 r2 into r3;
+    cast self.signer 0u128 3443843282313283355522573239085696902919850365217539366784739393210722344986field r0 r3 into r4 as Vault.record;
+    async createvault r0 into r5;
+    output r4 as Vault.record;
+    output r5 as piggybanker.aleo/createvault.future;
 
 finalize createvault:
     input r0 as u32.public;
-    assert.eq r0 block.height;
+    sub block.height r0 into r1;
+    lt r1 144u32 into r2;
+    assert.eq true r2;
 
 function privatize:
     input r0 as address.private;
